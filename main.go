@@ -19,13 +19,6 @@ func main() {
 		fmt.Println("You are root, lets do some hardening!")
 	}
 	/*
-		Disable core dumps
-		https://www.cyberciti.biz/faq/disable-core-dumps-linux/
-		https://www.cyberciti.biz/faq/how-to-disable-core-dumps-in-linux/
-
-		Edit access.conf to allow root login from a specific subnet
-		https://www.cyberciti.biz/faq/how-to-allow-root-login-from-a-specific-subnet/
-
 		Look into namespace.conf to see if polyinstantiation is a good security move
 		https://www.cyberciti.biz/faq/linux-namespaces-linux-kernel-virtualization/
 
@@ -44,14 +37,7 @@ func main() {
 		check permissions for /var/log
 		https://www.cyberciti.biz/faq/linux-check-file-permissions-linux-command/
 
-		Install auditd
-		https://www.cyberciti.biz/faq/linux-auditd-linux-audit-daemon/
 
-		set net.ipv4.tcp_syncookies to 1
-		https://www.cyberciti.biz/faq/linux-kernel-tcp-syncookies-linux-command/
-
-		disable ipv6 net.ipv6.conf.all.disable_ipv6 = 1
-		https://www.cyberciti.biz/faq/linux-kernel-ipv6-disable-ipv6-linux-command/
 
 		Disable wack http methods for apache
 		https://www.cyberciti.biz/faq/linux-apache-disable-http-methods-apache-command/
@@ -61,9 +47,6 @@ func main() {
 		https://dev-sec.io/baselines/ssh/
 
 		import baseline secure sshd config file and overwrite sshd_config file in place
-
-		check for blank passwords:
-		https://www.cyberciti.biz/faq/linux-check-for-blank-passwords-linux-command/
 
 		Disable telnet
 		https://www.cyberciti.biz/faq/linux-disable-telnet-telnet-server-linux-command/
@@ -97,4 +80,94 @@ func main() {
 
 	*/
 
+}
+
+
+func disableCoreDumps() {
+	_, err := exec.Command("echo", "'* hard core 0'", ">>", "/etc/security/limits.conf").Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+	_, err = exec.Command("echo", "'* soft core 0'", ">>", "/etc/security/limits.conf").Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+	_, err = exec.Command("echo", "'fs.suid_dumpable=0'", ">>", "/etc/sysctl.conf").Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+	// /etc/sysctl.d/9999-disable-core-dump.conf
+	_, err = exec.Command("sudo", "sysctl", "-p", "/etc/sysctl.d/99-disable-core-dump.conf").Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func accessRootLogin() {
+	// access.conf
+	_, err := exec.Command("echo", "+:root:192.168.89.1", ">>", "/etc/security/access.conf").Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func identifyPackageManager() {
+	supportedPackMan := []string{"apt", "yum", "pacman"}
+	for i:=0; i<len(supportedPackMan);i++ {
+		out, err := exec.Command("which", supportedPackMan[i]).Output()
+		if err != nil {
+			fmt.Println(err)
+		} else {
+			fmt.Println(string(out))
+			//_, err = exec.Command("sudo", supportedPackMan[i], "install", "fail2ban").Output()
+			//_, err = exec.Command("sudo", supportedPackMan[i], "install", "auditd", "audispd-plugins").Output()
+		}
+	}
+}
+
+func setTcpSynCookies() {
+	_, err := exec.Command("sudo", "echo", "'net.ipv4.tcp_syncookies = 1'", ">>", "/etc/sysctl.conf").Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+	_, err = exec.Command("sudo", "sysctl", "-p").Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func disableIPv6() {
+	_, err := exec.Command("sudo", "echo", "'net.ipv6.conf.all.disable_ipv6 = 1'", ">>", "/etc/sysctl.conf").Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+	_, err = exec.Command("sudo", "sysctl", "-p").Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+}
+
+func disableBlankPassAccts() {
+	findCmd := "sudo getent shadow | grep '^[^:]*::' | cut -d: -f1"
+	out, err := exec.Command("bash", "-c", findCmd).Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+	// iterate through each account w/blank password & disable it
+	for _, line := range strings.Split(strings.TrimSuffix(string(out), "\n"), "\n") {
+		disableCmd := "sudo usermod -L " + line
+		out, err = exec.Command("bash", "-c", disableCmd).Output()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
+func findSUIDSGIDBits() {
+	cmd := "sudo find / -type f \\( -perm -04000 -o -perm -02000 \\)")
+	out, err := exec.Command("bash", "-c", cmd).Output()
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(string(out))
 }
