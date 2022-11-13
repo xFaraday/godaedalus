@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func prelimcheck(dirforbackups string) bool {
+func prelimcheck(dirforbackups string, dirforconfigs string) bool {
 	if os.Getegid() != 0 {
 		fmt.Println("You must run this as root")
 		return false
@@ -20,7 +20,7 @@ func prelimcheck(dirforbackups string) bool {
 		}
 	}
 
-	if _, err := os.Stat(dirforbackups + "/Configurations"); err != nil {
+	if _, err := os.Stat(dirforconfigs); err != nil {
 		if os.IsNotExist(err) {
 			os.Mkdir(dirforbackups, 0700)
 		} else {
@@ -187,11 +187,11 @@ func disableCoreDumps() {
 
 func disableIPv6() {
 	println("[+] Disabling IPv6...")
-	_, err := exec.Command("sudo", "echo", "'net.ipv6.conf.all.disable_ipv6 = 1'", ">>", "/etc/sysctl.conf").Output()
+	_, err := exec.Command("echo", "'net.ipv6.conf.all.disable_ipv6 = 1'", "|", "tee", "-a", "/etc/sysctl.conf").Output()
 	if err != nil {
 		fmt.Println(err)
 	}
-	_, err = exec.Command("sudo", "sysctl", "-p").Output()
+	_, err = exec.Command("sysctl", "-p").Output()
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -364,7 +364,7 @@ func main() {
 		secureLocationConfig = "/opt/memento/Configurations"
 	)
 
-	if prelimcheck(secureLocation) {
+	if prelimcheck(secureLocation, secureLocationConfig) {
 		fmt.Println("[+] Everything is in order, proceeding with hardening")
 	} else {
 		fmt.Println("[-] Something went wrong aborting...")
