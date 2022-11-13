@@ -22,7 +22,7 @@ func prelimcheck(dirforbackups string, dirforconfigs string) bool {
 
 	if _, err := os.Stat(dirforconfigs); err != nil {
 		if os.IsNotExist(err) {
-			os.Mkdir(dirforbackups, 0700)
+			os.Mkdir(dirforconfigs, 0700)
 		} else {
 			return false
 		}
