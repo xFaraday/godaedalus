@@ -19,6 +19,15 @@ func prelimcheck(dirforbackups string) bool {
 			return false
 		}
 	}
+
+	if _, err := os.Stat(dirforbackups + "/Configurations"); err != nil {
+		if os.IsNotExist(err) {
+			os.Mkdir(dirforbackups, 0700)
+		} else {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -177,6 +186,7 @@ func disableCoreDumps() {
 //}
 
 func disableIPv6() {
+	println("[+] Disabling IPv6...")
 	_, err := exec.Command("sudo", "echo", "'net.ipv6.conf.all.disable_ipv6 = 1'", ">>", "/etc/sysctl.conf").Output()
 	if err != nil {
 		fmt.Println(err)
