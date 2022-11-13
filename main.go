@@ -3,83 +3,23 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 )
 
-func prelimcheck() bool {
+func prelimcheck(dirforbackups string) bool {
 	if os.Getegid() != 0 {
 		fmt.Println("You must run this as root")
 		return false
-		os.Exit(1)
+	}
+	if _, err := os.Stat(dirforbackups); err != nil {
+		if os.IsNotExist(err) {
+			os.Mkdir(dirforbackups, 0700)
+		} else {
+			return false
+		}
 	}
 	return true
-}
-
-func main() {
-	if prelimcheck() {
-		fmt.Println("You are root, lets do some hardening!")
-	}
-	/*
-		Look into namespace.conf to see if polyinstantiation is a good security move
-		https://www.cyberciti.biz/faq/linux-namespaces-linux-kernel-virtualization/
-
-		Install and configure fail2ban
-		https://www.cyberciti.biz/faq/how-to-install-fail2ban-on-linux/
-
-		GAIN NETWORK CONTROL set firewall rules
-		https://www.cyberciti.biz/faq/linux-firewall-firewall-rules-linux-firewall-commands/
-
-		check permissions for /etc/passwd && /etc/shadow
-		https://www.cyberciti.biz/faq/linux-check-file-permissions-linux-command/
-
-		find GTFObin suid and guid binaries and if so remove the suid and guid bit
-		https://www.cyberciti.biz/faq/linux-find-suid-and-guid-files-linux-command/
-
-		check permissions for /var/log
-		https://www.cyberciti.biz/faq/linux-check-file-permissions-linux-command/
-
-
-
-		Disable wack http methods for apache
-		https://www.cyberciti.biz/faq/linux-apache-disable-http-methods-apache-command/
-
-		For SSH stuff:
-		check permissions for /etc/ssh/ stuff
-		https://dev-sec.io/baselines/ssh/
-
-		import baseline secure sshd config file and overwrite sshd_config file in place
-
-		Disable telnet
-		https://www.cyberciti.biz/faq/linux-disable-telnet-telnet-server-linux-command/
-
-		Disable rsh
-		https://www.cyberciti.biz/faq/linux-disable-rsh-rsh-server-linux-command/
-
-		Disable rlogin
-		https://www.cyberciti.biz/faq/linux-disable-rlogin-rlogin-server-linux-command/
-
-		Disable rcp
-		https://www.cyberciti.biz/faq/linux-disable-rcp-rcp-server-linux-command/
-
-		Disable rshd
-		https://www.cyberciti.biz/faq/linux-disable-rshd-rshd-server-linux-command/
-
-		Disable rlogind
-		https://www.cyberciti.biz/faq/linux-disable-rlogind-rlogind-server-linux-command/
-
-		Disable rlogin
-		https://www.cyberciti.biz/faq/linux-disable-rlogin-rlogin-server-linux-command/
-
-		Limit failed login attempts
-		https://www.cyberciti.biz/faq/linux-limit-failed-login-attempts-linux-command/
-
-		Generate audit records for certain commands
-		https://www.cyberciti.biz/faq/linux-audit-records-for-certain-commands-linux-command/
-
-
-
-
-	*/
-
 }
 
 func ssh() {
@@ -88,59 +28,72 @@ func ssh() {
 	chown2 := ("sudo chown root /etc/ssh/sshd_config")
 	chmod1 := ("sudo chmod 644 /etc/ssh/ssh_config")
 	chmod2 := ("sudo chmod 644 /etc/ssh/sshd_config")
-	_, err := exec.Command("bash", "-c", chown1).Output()
-	_, err := exec.Command("bash", "-c", chown2).Output()
-	_, err := exec.Command("bash", "-c", chmod1).Output()
-	_, err := exec.Command("bash", "-c", chmod2).Output()
-
+	chn1, err := exec.Command("/bin/bash", "-c", chown1).Output()
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println(chn1)
+	}
+	chn2, err := exec.Command("/bin/bash", "-c", chown2).Output()
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println(chn2)
+	}
+	ch1, err := exec.Command("/bin/bash", "-c", chmod1).Output()
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println(ch1)
+	}
+	ch2, err := exec.Command("/bin/bash", "-c", chmod2).Output()
+	if err != nil {
+		fmt.Println(err)
+		fmt.Println(ch2)
+	}
 }
 
+/*
 func telnet() {
 	fmt.Println("[+] Configuring Telnet...")
 
-	telUrl := ("https://raw.githubusercontent.com/CSUSB-CISO/godaedalus/main/Configurations/telnet")
-	oldConfig := ("/home/OLD_TELNET")
-	originalEtc := ("/etc/xinetd.d/telnet")
+	var (
+		telnetPath = "/etc/xinetd.d/telnet"
+		telUrl     = "https://raw.githubusercontent.com/CSUSB-CISO/godaedalus/main/Configurations/telnet"
+		OldConfig  = "/opt/memento/Configurations/telnet.old"
+	)
 
-	telRequest, err := http.Get(telUrl)
-	if err != nil {
-		fmt.Println("[!] Error configuring telnet while grabbing new telnet file from repo.")
+	//backing up old telnet config
+	_, err := os.Stat(telnetPath)
+	if err == nil {
+		fmt.Println("[+] Backing up old telnet config...")
+
+		bytesRead, err := os.ReadFile(telnetPath)
+		if err != nil {
+			fmt.Println("[!] Error configuring telnet while reading original telnet path.")
+		}
+
+		err = os.WriteFile(OldConfig, []byte(bytesRead), 0644)
+		if err != nil {
+			fmt.Println("[!] Error configuring telnet while copying old telnet to new path.")
+		}
+
+		telRequest, err := http.Get(telUrl)
+		if err != nil {
+			fmt.Println("[!] Error configuring telnet while grabbing new telnet file from repo.")
+		}
+
+		telBody, err := ioutil.ReadAll(telRequest.Body)
+		if err != nil {
+			fmt.Println("[!] Error configuring telnet while reading http request.")
+		}
+
+		file2write := []byte(string(telBody))
+
+		os.WriteFile(telnetPath, []byte(file2write), 0644)
+		if err != nil {
+			fmt.Println("[!] Error configuring telnet while writing new telnet to file.")
+		}
 	}
-
-	telBody, err := ioutil.ReadAll(telRequest.Body)
-	if err != nil {
-		fmt.Println("[!] Error configuring telnet while reading http request.")
-	}
-
-	file2write := []byte(string(telBody))
-
-
-	os.WriteFile("telnet", []byte(file2write), 0644)
-	if err != nil {
-		fmt.Println("[!] Error configuring telnet while writing new telnet to file.")
-	}
-
-	bytesRead, err := os.ReadFile(oEtc)
-	if err != nil{
-		fmt.Println("[!] Error configuring telnet while reading original telnet path.")
-	}
-
-	err = os.WriteFile(oldEtc, []byte(bytesRead), 0644)
-	if err != nil {
-		fmt.Println("[!] Error configuring telnet while copying old telnet to new path.")
-	}
-
-	bytesRead1, err := os.ReadFile("telnet")
-	if err != nil {
-		fmt.Println("[!] Error configuring telnet while reading new telnet file.")
-	}
-
-	os.WriteFile(oEtc, []byte(bytesRead1), 0644)
-	if err != nil {
-		fmt.Println("[!] Error configuring telnet while reading original telnet path")
-	} 
 }
-
+*/
 
 func disableCoreDumps() {
 	_, err := exec.Command("echo", "'* hard core 0'", ">>", "/etc/security/limits.conf").Output()
@@ -162,66 +115,66 @@ func disableCoreDumps() {
 	}
 }
 
-func accessRootLogin() {
-	// access.conf
-	_, err := exec.Command("echo", "+:root:192.168.89.1", ">>", "/etc/security/access.conf").Output()
-	if err != nil {
-		fmt.Println(err)
-	}
-}
+//func accessRootLogin() {
+// access.conf
+//	_, err := exec.Command("echo", "+:root:192.168.89.1", ">>", "/etc/security/access.conf").Output()
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//}
 
-func installPackages() {
-	packageNames := []string{"fail2ban", "auditd"}
-	fmt.Println("[+] Installing the following packages: ", packageNames)
-	packageManager := pacmanID()
-	for _, packName := range packageNames {
-	// check package manager, install package according to the package manager available
-		if packageManager == "yum" {
-			// may have to install epel-release before
-			result, _ := exec.Command("bash", "-c", "sudo yum install " + packName + " -y").Output()
-			fmt.Println(string(result))
-		} else if packageManager == "apt" {
-			result, _ := exec.Command("bash", "-c", "sudo apt install " + packName + " -y").Output()
-			fmt.Println(string(result))
-		} else if packageManager == "zypp" {
-			result, _ := exec.Command("bash", "-c", "sudo zypper install " + packName + " -y").Output()
-			fmt.Println(string(result))
-		} else if packageManager == "apk" {
-			result, _ := exec.Command("bash", "-c", "sudo apk add " + packName).Output()
-			fmt.Println(string(result))
-		} else if packageManager == "pacman" {
-			result, _ := exec.Command("bash", "-c", "sudo pacman -S " + packName + " -y").Output()
-			fmt.Println(string(result))
-		} else {
-			fmt.Println("[!] Unknown package manager! Cannot install packages!")
-		}
-	}
-}
+//func installPackages() {
+//	packageNames := []string{"auditd"}
+//	fmt.Println("[+] Installing the following packages: ", packageNames)
+//	packageManager := pacmanID()
+//	for _, packName := range packageNames {
+//		// check package manager, install package according to the package manager available
+//		if packageManager == "yum" {
+//			// may have to install epel-release before
+//			result, _ := exec.Command("bash", "-c", "sudo yum install "+packName+" -y").Output()
+//			fmt.Println(string(result))
+//		} else if packageManager == "apt" {
+//			result, _ := exec.Command("bash", "-c", "sudo apt install "+packName+" -y").Output()
+//			fmt.Println(string(result))
+//		} else if packageManager == "zypp" {
+//			result, _ := exec.Command("bash", "-c", "sudo zypper install "+packName+" -y").Output()
+//			fmt.Println(string(result))
+//		} else if packageManager == "apk" {
+//			result, _ := exec.Command("bash", "-c", "sudo apk add "+packName).Output()
+//			fmt.Println(string(result))
+//		} else if packageManager == "pacman" {
+//			result, _ := exec.Command("bash", "-c", "sudo pacman -S "+packName+" -y").Output()
+//			fmt.Println(string(result))
+//		} else {
+//			fmt.Println("[!] Unknown package manager! Cannot install packages!")
+//		}
+//	}
+//}
 
-func identifyPackageManager() {
-	supportedPackMan := []string{"apt", "yum", "pacman"}
-	for i:=0; i<len(supportedPackMan);i++ {
-		out, err := exec.Command("which", supportedPackMan[i]).Output()
-		if err != nil {
-			fmt.Println(err)
-		} else {
-			fmt.Println(string(out))
-			//_, err = exec.Command("sudo", supportedPackMan[i], "install", "fail2ban").Output()
-			//_, err = exec.Command("sudo", supportedPackMan[i], "install", "auditd", "audispd-plugins").Output()
-		}
-	}
-}
+//func identifyPackageManager() {
+//	supportedPackMan := []string{"apt", "yum", "pacman"}
+//	for i := 0; i < len(supportedPackMan); i++ {
+//		out, err := exec.Command("which", supportedPackMan[i]).Output()
+//		if err != nil {
+//			fmt.Println(err)
+//		} else {
+//			fmt.Println(string(out))
+//			//_, err = exec.Command("sudo", supportedPackMan[i], "install", "fail2ban").Output()
+//			//_, err = exec.Command("sudo", supportedPackMan[i], "install", "auditd", "audispd-plugins").Output()
+//		}
+//	}
+//}
 
-func setTcpSynCookies() {
-	_, err := exec.Command("sudo", "echo", "'net.ipv4.tcp_syncookies = 1'", ">>", "/etc/sysctl.conf").Output()
-	if err != nil {
-		fmt.Println(err)
-	}
-	_, err = exec.Command("sudo", "sysctl", "-p").Output()
-	if err != nil {
-		fmt.Println(err)
-	}
-}
+//func setTcpSynCookies() {
+//	_, err := exec.Command("sudo", "echo", "'net.ipv4.tcp_syncookies = 1'", ">>", "/etc/sysctl.conf").Output()
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//	_, err = exec.Command("sudo", "sysctl", "-p").Output()
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//}
 
 func disableIPv6() {
 	_, err := exec.Command("sudo", "echo", "'net.ipv6.conf.all.disable_ipv6 = 1'", ">>", "/etc/sysctl.conf").Output()
@@ -250,23 +203,23 @@ func disableBlankPassAccts() {
 	}
 }
 
-func findSUIDSGIDBits() {
-	cmd := "sudo find / -type f \\( -perm -04000 -o -perm -02000 \\)")
-	out, err := exec.Command("bash", "-c", cmd).Output()
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(string(out))
-}
+//func findSUIDSGIDBits() {
+//	cmd := "sudo find / -type f \\( -perm -04000 -o -perm -02000 \\)"
+//	out, err := exec.Command("bash", "-c", cmd).Output()
+//	if err != nil {
+//		fmt.Println(err)
+//	}
+//	fmt.Println(string(out))
+//}
 
-func setLoginAttempts() {
-	fmt.Println("[+] Setting up account lockout. After 3 login unsuccessful login attempts account will be locked for 10 minutes (root included)")
-	lockoutCmd := "sudo echo auth    required           pam_tally2.so onerr=fail deny=3 unlock_time=600 audit even_deny_root root_unlock_time=600 >> /etc/pam.d/common-auth"
-	_, err := exec.Command("bash", "-c", lockoutCmd).Output()
-	if err != nil {
-		fmt.Println("[!] Error encountered while setting up account lockout: ", err)
-	}
-}
+//func setLoginAttempts() {
+//	fmt.Println("[+] Setting up account lockout. After 3 login unsuccessful login attempts account will be locked for 10 minutes (root included)")
+//	lockoutCmd := "sudo echo auth    required           pam_tally2.so onerr=fail deny=3 unlock_time=600 audit even_deny_root root_unlock_time=600 >> /etc/pam.d/common-auth"
+//	_, err := exec.Command("bash", "-c", lockoutCmd).Output()
+//	if err != nil {
+//		fmt.Println("[!] Error encountered while setting up account lockout: ", err)
+//	}
+//}
 
 func checkFilePermissions() {
 	fmt.Println("[+] Checking file permissions...")
@@ -274,7 +227,7 @@ func checkFilePermissions() {
 	varLogCmd := "stat --printf='Permissions for %n are %A' "
 	//iterate through each file, print permissions for files
 	for _, file := range files {
-		perms, err := exec.Command("bash", "-c", varLogCmd + file).Output()
+		perms, err := exec.Command("bash", "-c", varLogCmd+file).Output()
 		if err != nil {
 			fmt.Println("[!] Error encountered while checking file permissions. Error: ", err)
 		}
@@ -282,7 +235,23 @@ func checkFilePermissions() {
 	}
 }
 
+func backupSshdConfig(secureLocation string) bool {
+	cmd := "cp " + "/etc/ssh/sshd_config" + secureLocation
+	_, err := exec.Command("bash", "-c", cmd).Output()
+	if err != nil {
+		fmt.Println("[!] Error encountered while replacing sshd config file! Error: ", err)
+		return false
+	}
+	return true
+}
+
 func sshdConfigReplacement(secureLocation string) {
+	fmt.Println("[+] Backing original sshd config file...")
+	sshdstatus := backupSshdConfig(secureLocation)
+	if !sshdstatus {
+		fmt.Println("[!] Error encountered while backing up sshd config file!")
+		return
+	}
 	fmt.Println("[+] Replacing the sshd config file...")
 	cmd := "cp " + secureLocation + "/etc/ssh/sshd_config"
 	_, err := exec.Command("bash", "-c", cmd).Output()
@@ -291,20 +260,20 @@ func sshdConfigReplacement(secureLocation string) {
 	}
 }
 
-func disableRSH(filepath string) {
-	ogConfigContent, err := os.ReadFile(filepath)
-	if err != nil {
-		fmt.Println("[!] Error encountered while disabling RSH: ", err)
-	}
-	newConfigFile := strings.Replace(string(ogConfigContent), "    disable = no", "    disable = yes", -1)
-	// Golang will auto overwrite file if it already exists
-	fileHandle, err := os.Create(filepath)
-	if err != nil {
-		fmt.Println("[!] Error encountered while replacing config file for RSH: ", err)
-	}
-	fileHandle.WriteString(string(newConfigFile))
-	fileHandle.Close()
-}
+//func disableRSH(filepath string) {
+//	ogConfigContent, err := os.ReadFile(filepath)
+//	if err != nil {
+//		fmt.Println("[!] Error encountered while disabling RSH: ", err)
+//	}
+//	newConfigFile := strings.Replace(string(ogConfigContent), "    disable = no", "    disable = yes", -1)
+//	// Golang will auto overwrite file if it already exists
+//	fileHandle, err := os.Create(filepath)
+//	if err != nil {
+//		fmt.Println("[!] Error encountered while replacing config file for RSH: ", err)
+//	}
+//	fileHandle.WriteString(string(newConfigFile))
+//	fileHandle.Close()
+//}
 
 func pacmanID() string {
 	packMans := []string{"yum", "zypp", "apk", "apt", "pacman"}
@@ -361,7 +330,7 @@ func disableSUIDBits() {
 	for _, binary := range suidBinariesSlice {
 		// if the current element we're on is in the list of exploitable suid binaries, we resolve it
 		if contains(exploitableSUIDs, binary) {
-			_, _ = exec.Command("bash", "-c", "sudo chmod u-s " + binary).Output()
+			_, _ = exec.Command("bash", "-c", "sudo chmod u-s "+binary).Output()
 		}
 	}
 }
@@ -374,7 +343,67 @@ func disableSGIDBits() {
 	for _, binary := range sGidBinariesSlice {
 		// if the current element we're on is in the list of exploitable suid binaries, we resolve it
 		if contains(exploitableSGIDs, binary) {
-			_, _ = exec.Command("bash", "-c", "sudo chmod g-s " + binary).Output()
+			_, _ = exec.Command("bash", "-c", "sudo chmod g-s "+binary).Output()
 		}
 	}
+}
+
+func main() {
+	var (
+		secureLocation       = "/opt/memento"
+		secureLocationConfig = "/opt/memento/Configurations"
+	)
+
+	if prelimcheck(secureLocation) {
+		fmt.Println("[+] Everything is in order, proceeding with hardening")
+	} else {
+		fmt.Println("[-] Something went wrong aborting...")
+		os.Exit(1)
+	}
+
+	//<-------------------------------------->
+	//	Sshd config overwrite
+	//<-------------------------------------->
+	sshdConfigReplacement(secureLocationConfig)
+	//<-------------------------------------->
+	//	Sshd permission set
+	//<-------------------------------------->
+	ssh()
+	//<-------------------------------------->
+	//	Secure permissions on key files
+	//<-------------------------------------->
+	checkFilePermissions()
+	//<-------------------------------------->
+	//	Disable accounts with blank passwords
+	//<-------------------------------------->
+	disableBlankPassAccts()
+	//<-------------------------------------->
+	//	Disable IPv6
+	//<-------------------------------------->
+	disableIPv6()
+	//<-------------------------------------->
+	//	Disable core dumps
+	//<-------------------------------------->
+	disableCoreDumps()
+	//<-------------------------------------->
+	//	Disable telnet
+	//<-------------------------------------->
+	//	Disable rsh
+	//<-------------------------------------->
+	//	Disable rlogin
+	//<-------------------------------------->
+	//	Disable rcp
+	//<-------------------------------------->
+	//	Disable rshd
+	//<-------------------------------------->
+	//	Disable rlogind
+	//<-------------------------------------->
+	//	Disable rlogin
+	//<-------------------------------------->
+	removeInsecureServices()
+	//<-------------------------------------->
+	//	find GTFObin suid and guid binaries and if so remove the suid and guid bit
+	//<-------------------------------------->
+	disableSUIDBits()
+	disableSGIDBits()
 }
