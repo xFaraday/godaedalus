@@ -187,11 +187,13 @@ func disableCoreDumps() {
 
 func disableIPv6() {
 	println("[+] Disabling IPv6...")
-	_, err := exec.Command("echo", "'net.ipv6.conf.all.disable_ipv6 = 1'", "|", "tee", "-a", "/etc/sysctl.conf").Output()
+	disableFullCmd := "echo net.ipv4.ip_forward = 1 | sudo tee -a /etc/sysctl.conf"
+	_, err := exec.Command(disableFullCmd).Output()
 	if err != nil {
 		fmt.Println(err)
 	}
-	_, err = exec.Command("sysctl", "-p").Output()
+	reloadFullCmd := "sysctl -p"
+	_, err = exec.Command(reloadFullCmd).Output()
 	if err != nil {
 		fmt.Println(err)
 	}
